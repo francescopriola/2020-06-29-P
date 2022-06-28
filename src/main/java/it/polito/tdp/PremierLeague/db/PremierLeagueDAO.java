@@ -5,8 +5,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import it.polito.tdp.PremierLeague.model.Action;
+import it.polito.tdp.PremierLeague.model.Arco;
 import it.polito.tdp.PremierLeague.model.Match;
 import it.polito.tdp.PremierLeague.model.Player;
 
@@ -60,11 +64,11 @@ public class PremierLeagueDAO {
 		}
 	}
 	
-	public List<Match> listAllMatches(){
+	public Map<Integer, Match> listAllMatches(){
 		String sql = "SELECT m.MatchID, m.TeamHomeID, m.TeamAwayID, m.teamHomeFormation, m.teamAwayFormation, m.resultOfTeamHome, m.date, t1.Name, t2.Name   "
 				+ "FROM Matches m, Teams t1, Teams t2 "
 				+ "WHERE m.TeamHomeID = t1.TeamID AND m.TeamAwayID = t2.TeamID";
-		List<Match> result = new ArrayList<Match>();
+		Map<Integer, Match> result = new HashMap<>();
 		Connection conn = DBConnect.getConnection();
 
 		try {
@@ -77,7 +81,7 @@ public class PremierLeagueDAO {
 							res.getInt("m.teamAwayFormation"),res.getInt("m.resultOfTeamHome"), res.getTimestamp("m.date").toLocalDateTime(), res.getString("t1.Name"),res.getString("t2.Name"));
 				
 				
-				result.add(match);
+				result.put(match.getMatchID(), match);
 
 			}
 			conn.close();
@@ -88,5 +92,44 @@ public class PremierLeagueDAO {
 			return null;
 		}
 	}
+	
+	public List<Arco> getArchi(Map<Integer, Match> idMap, int mese, int min){
+		String sql = "SELECT DISTINCT a1.`MatchID` as m1, a2.`MatchID` as m2, COUNT(DISTINCT a1.`PlayerID`) as peso "
+				+ "FROM actions a1, actions a2, matches m1, matches m2 "
+				+ "WHERE a1.`MatchID` > a2.`MatchID` AND m1.`MatchID` = a1.`MatchID` AND m2.`MatchID` = a2.`MatchID`  "
+				+ "AND a1.`PlayerID` = a2.`PlayerID` AND a1.`TimePlayed` >= ? AND a2.`TimePlayed` >= ? AND MONTH(m1.`Date`) = ? "
+				+ "AND MONTH(m1.`Date`) = MONTH(m2.`Date`) "
+				+ "GROUP BY a1.`MatchID`, a2.`MatchID`";
+		
+		List<Arco> result = new ArrayList<Arco>();
+		Connection conn = DBConnect.getConnection();
+
+		try {
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setInt(1, min);
+			st.setInt(2, min);
+			st.setInt(3, mese);
+			ResultSet res = st.executeQuery();
+			while (res.next()) {
+
+				
+				Match m1 = idMap.get(res.getInt("m1"));
+				Match m2 = idMap.get(res.getInt("m2"));
+				Integer peso = res.getInt("peso");
+				
+				Arco arco = new Arco(m1, m2, peso);
+				
+				
+				result.add(arco);
+
+			}
+			conn.close();
+			return result;
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return null;
+		}
+	} 
 	
 }
